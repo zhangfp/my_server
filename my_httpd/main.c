@@ -21,6 +21,32 @@ int set_sock_nonblock(int sockfd)
 	return 0;
 }
 
+/*
+判断是否是ipv4映射的ipv6地址
+返回0：ipv6
+返回1：ipv4
+*/
+int is_v4_mapped_ipv6(struct in6_addr in6_addr)
+{
+	return (in6_addr.s6_addr32[0] == 0 && in6_addr.s6_addr32[1] == 0 && in6_addr.s6_addr32[2] == htonl(0x0000ffff));
+}
+
+int get_str_ip(struct in6_addr in6_addr, char *buf, int buflen)
+{
+	if (is_v4_mapped_ipv6(in6_addr) == 1)
+	{
+		unsigned long nip;
+		memcpy(&nip, &in6_addr.s6_addr32[3], sizeof(long));
+		inet_ntop(AF_INET, &nip, buf, buflen);
+	}
+	else
+	{
+		inet_ntop(AF_INET6, &in6_addr, buf, buflen);
+	}
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	//TODO
@@ -66,7 +92,8 @@ int main(int argc, char *argv[])
 	int client_fd = -1;
 	struct sockaddr_in6 client_addr;
 	socklen_t addrlen = 0;
-	char str_addr[64];
+	char client_ip[64];
+	char server_ip[64];
 	while (1)
 	{
 		do
@@ -81,8 +108,6 @@ int main(int argc, char *argv[])
 					printf("accept() error. %d:%s\n", errno, strerror(errno));
 				break;
 			}
-
-			printf("client ip: %s:%d\n", inet_ntop(AF_INET6, &client_addr.sin6_addr, str_addr, sizeof(str_addr)), ntohs(client_addr.sin6_port));
 			
 			addrlen = sizeof(struct sockaddr_in6);
 			if (getpeername(client_fd, (struct sockaddr *)&client_addr, &addrlen) < 0)
@@ -90,8 +115,9 @@ int main(int argc, char *argv[])
 				printf("getpeername() error. %d:%s\n", errno, strerror(errno));
 				break;
 			}
-			
-			printf("client ip: %s:%d\n", inet_ntop(AF_INET6, &client_addr.sin6_addr, str_addr, sizeof(str_addr)), ntohs(client_addr.sin6_port));
+
+			get_str_ip(client_addr.sin6_addr, client_ip, sizeof(client_ip));
+			printf("client: %s:%d\n", client_ip, ntohs(client_addr.sin6_port));
 			
 			addrlen = sizeof(struct sockaddr_in6);
 			if (getsockname(client_fd, (struct sockaddr *)&server_addr, &addrlen) < 0)
@@ -100,7 +126,8 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			printf("server ip: %s:%d\n", inet_ntop(AF_INET6, &server_addr.sin6_addr, str_addr, sizeof(str_addr)), ntohs(server_addr.sin6_port));
+			get_str_ip(server_addr.sin6_addr, server_ip, sizeof(server_ip));
+			printf("server: %s:%d\n", server_ip, ntohs(server_addr.sin6_port));
 		} while (0);
 		
 		if (client_fd > 0)
